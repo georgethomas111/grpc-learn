@@ -12,29 +12,44 @@ import (
 )
 
 type StreamingServer struct {
-	streams map[string]learn.Learn_GossipServer
+	streams map[string]chan string
 }
 
 func (s *StreamingServer) Gossip(req *learn.GossipRequest, stream learn.Learn_GossipServer) error {
 	if req == nil {
 		return errors.New("Request cannot be nil")
 	}
-	s.streams[req.Id] = stream
+
+	s.streams[req.Id] = make(chan string)
+
+	ctx := stream.Context()
+	for {
+		select {
+		case <-ctx.Done():
+			fmt.Println("Received done")
+			delete(s.streams, req.Id)
+			return nil
+		case info := <-s.streams[req.Id]:
+			msg := &learn.Messages{
+				Info: info,
+			}
+			err := stream.Send(msg)
+			if err != nil {
+				fmt.Println("Error streaming message from server to client with id ", req.Id, err.Error())
+			}
+		}
+	}
+
 	return nil
 }
 
 // Update time updates the current time to all the clients.
 func (s *StreamingServer) UpdateTime() {
-	msg := &learn.Messages{
-		Info: strconv.Itoa(int(time.Now().Unix())),
-	}
+	timeString := strconv.Itoa(int(time.Now().Unix()))
 
-	fmt.Println("Time to update time to clients ", len(s.streams))
 	for id, stream := range s.streams {
-		err := stream.Send(msg)
-		if err != nil {
-			fmt.Println("Error streaming message from server to client with id ", id)
-		}
+		fmt.Println("Trying to write message to stream ", id)
+		stream <- timeString
 	}
 }
 
@@ -53,7 +68,7 @@ func (s *StreamingServer) Start(grpcAddr string) error {
 
 func New() *StreamingServer {
 	return &StreamingServer{
-		streams: make(map[string]learn.Learn_GossipServer),
+		streams: make(map[string]chan string),
 	}
 }
 
@@ -62,8 +77,10 @@ func main() {
 	s := New()
 	go func() {
 		for {
-			<-time.After(time.Second)
-			s.UpdateTime()
+			select {
+			case <-time.After(time.Second):
+				s.UpdateTime()
+			}
 		}
 	}()
 	err := s.Start(grpcAddr)
