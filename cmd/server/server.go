@@ -26,7 +26,7 @@ func (s *StreamingServer) Gossip(req *learn.GossipRequest, stream learn.Learn_Go
 	for {
 		select {
 		case <-ctx.Done():
-			fmt.Println("Received done")
+			fmt.Println("Received done from client, exiting")
 			delete(s.streams, req.Id)
 			return nil
 		case info := <-s.streams[req.Id]:
@@ -35,7 +35,8 @@ func (s *StreamingServer) Gossip(req *learn.GossipRequest, stream learn.Learn_Go
 			}
 			err := stream.Send(msg)
 			if err != nil {
-				fmt.Println("Error streaming message from server to client with id ", req.Id, err.Error())
+				fmt.Println("Error streaming message from "+
+					"server to client with id ", req.Id, err.Error())
 			}
 		}
 	}
@@ -48,7 +49,7 @@ func (s *StreamingServer) UpdateTime() {
 	timeString := strconv.Itoa(int(time.Now().Unix()))
 
 	for id, stream := range s.streams {
-		fmt.Println("Trying to write message to stream ", id)
+		fmt.Println("Trying to write message to stream ", id, timeString)
 		stream <- timeString
 	}
 }
