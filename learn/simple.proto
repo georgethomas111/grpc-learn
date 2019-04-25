@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package learn;
+
+service Learn {
+  rpc Gossip(GossipRequest) returns (stream Messages);
+};
+
+message GossipRequest {
+  string id = 1;
+};
+
+// The response message containing the greetings
+message Messages {
+  string info = 1;
+};
